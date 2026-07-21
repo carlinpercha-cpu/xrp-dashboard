@@ -578,7 +578,7 @@ async function loadCorr(){
       const d = await getJSON(`${CG}/coins/${id}/market_chart?vs_currency=usd&days=30&interval=daily`);
       const p = d.prices.map(x=>x[1]);
       series[id] = p.slice(1).map((v,i)=>Math.log(v/p[i]));   // daily log returns
-      await new Promise(r=>setTimeout(r,220));                 // stay under CoinGecko rate limit
+      await new Promise(r=>setTimeout(r,2500));                 // stay under CoinGecko rate limit
     }
     const n = Math.min(...CORR_IDS.map(id=>series[id].length));
     let html = '<table class="hm"><tr><th></th>';
@@ -615,12 +615,17 @@ document.getElementById('cmptabs').addEventListener('click',e=>{
   loadCmp(b.dataset.cmp);
 });
 
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
 loadTicker();
 loadMain('1M');
-loadStats();
-loadCmp(30);
-loadGrid();
-loadCorr();
+
+(async () => {
+  await loadStats();  await wait(2500);
+  await loadGrid();   await wait(2500);
+  await loadCmp(30);  await wait(2500);
+  await loadCorr();
+})();
 
 setInterval(loadTicker, 30000);
 setInterval(loadStats, 300000);

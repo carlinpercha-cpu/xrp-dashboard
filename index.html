@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XRP Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --ink:#0E1116;
+  --slate:#161B22;
+  --line:#232B36;
+  --mute:#7C8794;
+  --paper:#E8EAED;
+  --up:#3FB68B;
+  --down:#E5643E;
+  --wire:#5B8DEF;
+  --amber:#D9A441;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--ink);
+  color:var(--paper);
+  font-family:'Archivo',system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  padding:0 0 80px;
+}
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+
+/* ---------- masthead ---------- */
+header{
+  border-bottom:1px solid var(--line);
+  padding:22px 0;
+  margin-bottom:36px;
+}
+.masthead{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.brand{font-size:15px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+.brand span{color:var(--mute);font-weight:500}
+.stamp{
+  font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--mute);
+  letter-spacing:.06em;display:flex;align-items:center;gap:8px;
+}
+.pulse{width:6px;height:6px;border-radius:50%;background:var(--up);
+  animation:blip 2.4s ease-in-out infinite}
+@keyframes blip{0%,100%{opacity:1}50%{opacity:.25}}
+@media(prefers-reduced-motion:reduce){.pulse{animation:none}}
+
+/* ---------- hero ---------- */
+.hero{display:grid;grid-template-columns:1fr auto;gap:32px;align-items:end;margin-bottom:14px}
+.pricebig{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:clamp(48px,9vw,88px);
+  font-weight:600;line-height:.92;letter-spacing:-.03em;
+  font-variant-numeric:tabular-nums;
+}
+.eyebrow{
+  font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--mute);
+  letter-spacing:.14em;text-transform:uppercase;margin-bottom:12px;
+}
+.delta{font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:500;
+  display:flex;flex-direction:column;align-items:flex-end;gap:4px;text-align:right}
+.delta .abs{font-size:13px;color:var(--mute)}
+.up{color:var(--up)} .down{color:var(--down)}
+
+/* ---------- range bar ---------- */
+.range{margin:26px 0 44px}
+.rangelabels{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;
+  font-size:11px;color:var(--mute);margin-bottom:8px;letter-spacing:.05em}
+.track{height:3px;background:var(--line);position:relative;border-radius:2px}
+.fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--line),var(--wire));border-radius:2px}
+.knob{position:absolute;top:50%;width:11px;height:11px;border-radius:50%;
+  background:var(--paper);transform:translate(-50%,-50%);
+  box-shadow:0 0 0 4px var(--ink)}
+.rangecap{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--mute);
+  margin-top:10px;letter-spacing:.04em}
+
+/* ---------- sections ---------- */
+section{margin-bottom:52px}
+.shead{display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+  border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:20px;flex-wrap:wrap}
+h2{font-size:13px;font-weight:600;letter-spacing:.14em;text-transform:uppercase}
+.sub{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--mute);letter-spacing:.04em}
+
+/* ---------- toggles ---------- */
+.tabs{display:flex;gap:2px;background:var(--slate);padding:3px;border-radius:6px}
+.tab{
+  font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;
+  letter-spacing:.08em;color:var(--mute);background:none;border:0;cursor:pointer;
+  padding:6px 13px;border-radius:4px;transition:background .15s,color .15s;
+}
+.tab:hover{color:var(--paper)}
+.tab[aria-selected="true"]{background:var(--line);color:var(--paper)}
+.tab:focus-visible{outline:2px solid var(--wire);outline-offset:2px}
+
+/* ---------- charts ---------- */
+.chartbox{position:relative;height:300px}
+.volbox{position:relative;height:78px;margin-top:6px}
+.cmpbox{position:relative;height:280px}
+
+/* ---------- stat cards ---------- */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1px;background:var(--line)}
+.stat{background:var(--ink);padding:18px 18px 20px}
+.stat .k{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--mute);
+  letter-spacing:.12em;text-transform:uppercase;margin-bottom:9px}
+.stat .v{font-family:'IBM Plex Mono',monospace;font-size:21px;font-weight:600;
+  font-variant-numeric:tabular-nums}
+.stat .n{font-size:11px;color:var(--mute);margin-top:5px}
+
+/* ---------- ath ---------- */
+.ath{display:grid;grid-template-columns:auto 1fr;gap:26px;align-items:center;
+  background:var(--slate);padding:24px;border-left:2px solid var(--amber)}
+.athnum{font-family:'IBM Plex Mono',monospace;font-size:42px;font-weight:600;
+  color:var(--amber);line-height:1}
+.athtxt{font-size:13px;color:var(--mute);line-height:1.6}
+.athtxt b{color:var(--paper);font-weight:600}
+
+/* ---------- sparkline grid ---------- */
+.grid10{display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:1px;background:var(--line)}
+.cell{background:var(--ink);padding:14px 15px;display:flex;flex-direction:column;gap:9px}
+.cellhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.sym{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:.06em}
+.cellname{font-size:10px;color:var(--mute);display:block;font-weight:400;letter-spacing:0;margin-top:2px}
+.chg{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500}
+.spark{height:34px}
+.cellprice{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--mute)}
+
+/* ---------- heatmap ---------- */
+.hmwrap{overflow-x:auto}
+table.hm{border-collapse:collapse;font-family:'IBM Plex Mono',monospace;font-size:11px;min-width:460px}
+table.hm th{color:var(--mute);font-weight:500;letter-spacing:.08em;padding:8px 6px;text-align:center}
+table.hm th.row{text-align:right;padding-right:12px}
+table.hm td{padding:0;text-align:center}
+.cellc{width:64px;height:40px;display:flex;align-items:center;justify-content:center;
+  font-weight:600;font-variant-numeric:tabular-nums;color:#0E1116}
+
+/* ---------- states ---------- */
+.loading,.err{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--mute);
+  padding:26px 0;letter-spacing:.04em}
+.err{color:var(--down)}
+footer{border-top:1px solid var(--line);padding-top:18px;font-family:'IBM Plex Mono',monospace;
+  font-size:11px;color:var(--mute);line-height:1.8;letter-spacing:.03em}
+
+@media(max-width:640px){
+  .hero{grid-template-columns:1fr;gap:14px;align-items:start}
+  .delta{align-items:flex-start;text-align:left}
+  .ath{grid-template-columns:1fr;gap:14px}
+  .shead{flex-direction:column;align-items:flex-start}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap masthead">
+    <div class="brand">XRP <span>/ USD MONITOR</span></div>
+    <div class="stamp"><span class="pulse"></span><span id="stamp">connecting</span></div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- HERO -->
+  <div class="eyebrow">Last trade — Coinbase</div>
+  <div class="hero">
+    <div class="pricebig" id="price">—</div>
+    <div class="delta">
+      <span id="pct">—</span>
+      <span class="abs" id="abs">24-hour change</span>
+    </div>
+  </div>
+
+  <!-- 24H RANGE -->
+  <div class="range">
+    <div class="rangelabels"><span id="lo">—</span><span>24-HOUR RANGE</span><span id="hi">—</span></div>
+    <div class="track"><div class="fill" id="fill"></div><div class="knob" id="knob" style="left:0"></div></div>
+    <div class="rangecap" id="rangecap">—</div>
+  </div>
+
+  <!-- PRICE + VOLUME -->
+  <section>
+    <div class="shead">
+      <h2>Price &amp; Volume</h2>
+      <div class="tabs" role="tablist" id="tabs">
+        <button class="tab" role="tab" data-tf="1D" aria-selected="false">1D</button>
+        <button class="tab" role="tab" data-tf="1W" aria-selected="false">1W</button>
+        <button class="tab" role="tab" data-tf="1M" aria-selected="true">1M</button>
+        <button class="tab" role="tab" data-tf="1Y" aria-selected="false">1Y</button>
+        <button class="tab" role="tab" data-tf="ALL" aria-selected="false">ALL</button>
+      </div>
+    </div>
+    <div class="chartbox"><canvas id="mainChart"></canvas></div>
+    <div class="volbox"><canvas id="volChart"></canvas></div>
+    <div class="sub" style="margin-top:10px" id="mainNote">Loading candles…</div>
+  </section>
+
+  <!-- STATS -->
+  <section>
+    <div class="shead"><h2>Market</h2><div class="sub">CoinGecko</div></div>
+    <div class="stats" id="stats">
+      <div class="stat"><div class="k">Market cap</div><div class="v" id="mcap">—</div><div class="n" id="mcaprank">—</div></div>
+      <div class="stat"><div class="k">24h volume</div><div class="v" id="vol24">—</div><div class="n" id="volratio">—</div></div>
+      <div class="stat"><div class="k">Circulating</div><div class="v" id="supply">—</div><div class="n" id="supplypct">—</div></div>
+      <div class="stat"><div class="k">7-day change</div><div class="v" id="chg7">—</div><div class="n">Rolling week</div></div>
+    </div>
+  </section>
+
+  <!-- ATH -->
+  <section>
+    <div class="shead"><h2>Distance from all-time high</h2><div class="sub">Since inception</div></div>
+    <div class="ath">
+      <div class="athnum" id="athpct">—</div>
+      <div class="athtxt" id="athtxt">Loading…</div>
+    </div>
+  </section>
+
+  <!-- COMPARISON -->
+  <section>
+    <div class="shead">
+      <h2>XRP vs BTC vs ETH</h2>
+      <div class="tabs" role="tablist" id="cmptabs">
+        <button class="tab" role="tab" data-cmp="30" aria-selected="true">30D</button>
+        <button class="tab" role="tab" data-cmp="90" aria-selected="false">90D</button>
+        <button class="tab" role="tab" data-cmp="365" aria-selected="false">1Y</button>
+      </div>
+    </div>
+    <div class="cmpbox"><canvas id="cmpChart"></canvas></div>
+    <div class="sub" style="margin-top:10px">All three indexed to 100 at the start of the window. Separation means XRP moved on its own; parallel lines mean the whole market moved together.</div>
+  </section>
+
+  <!-- TOP 10 -->
+  <section>
+    <div class="shead"><h2>Market at a glance</h2><div class="sub">Top 10 by market cap · 7-day trend</div></div>
+    <div class="grid10" id="grid10"><div class="loading">Loading market data…</div></div>
+  </section>
+
+  <!-- CORRELATION -->
+  <section>
+    <div class="shead"><h2>30-day correlation</h2><div class="sub">Daily returns, Pearson</div></div>
+    <div class="hmwrap" id="hmwrap"><div class="loading">Computing correlations…</div></div>
+    <div class="sub" style="margin-top:12px">Values near 1.00 mean two coins moved together almost every day. Lower values mean one was doing something the other wasn't.</div>
+  </section>
+
+  <footer>
+    Prices from Coinbase Exchange · market data from CoinGecko · refreshes every 30 seconds<br>
+    Context and history only. Nothing here is a signal, a recommendation, or a forecast.
+  </footer>
+</div>
+
+<script>
+/* ============================================================
+   CONFIG
+   ============================================================ */
+const CB   = 'https://api.exchange.coinbase.com';
+const CG   = 'https://api.coingecko.com/api/v3';
+const PAIR = 'XRP-USD';
+const CMP  = [
+  {id:'ripple',   sym:'XRP', color:'#5B8DEF'},
+  {id:'bitcoin',  sym:'BTC', color:'#D9A441'},
+  {id:'ethereum', sym:'ETH', color:'#9B8DEF'}
+];
+const CORR_IDS = ['ripple','bitcoin','ethereum','solana','cardano'];
+const CORR_SYM = {ripple:'XRP',bitcoin:'BTC',ethereum:'ETH',solana:'SOL',cardano:'ADA'};
+
+const fmtUSD = (n,d=4) => n==null?'—':'$'+n.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmtBig = n => {
+  if(n==null) return '—';
+  if(n>=1e12) return '$'+(n/1e12).toFixed(2)+'T';
+  if(n>=1e9)  return '$'+(n/1e9).toFixed(2)+'B';
+  if(n>=1e6)  return '$'+(n/1e6).toFixed(1)+'M';
+  return '$'+Math.round(n).toLocaleString();
+};
+const fmtNum = n => n==null?'—':n>=1e9?(n/1e9).toFixed(2)+'B':n>=1e6?(n/1e6).toFixed(1)+'M':Math.round(n).toLocaleString();
+const pct = n => (n>=0?'+':'')+n.toFixed(2)+'%';
+const cls = n => n>=0?'up':'down';
+
+async function getJSON(url){
+  const r = await fetch(url);
+  if(!r.ok) throw new Error(url.split('/')[2]+' returned '+r.status);
+  return r.json();
+}
+
+/* ============================================================
+   CHART DEFAULTS
+   ============================================================ */
+Chart.defaults.font.family = "'IBM Plex Mono', monospace";
+Chart.defaults.font.size = 10;
+Chart.defaults.color = '#7C8794';
+const GRID = {color:'#232B36', drawTicks:false};
+
+/* ============================================================
+   1. TICKER + 24H RANGE  (Coinbase)
+   ============================================================ */
+async function loadTicker(){
+  try{
+    const [t, s] = await Promise.all([
+      getJSON(`${CB}/products/${PAIR}/ticker`),
+      getJSON(`${CB}/products/${PAIR}/stats`)
+    ]);
+    const price = parseFloat(t.price);
+    const open  = parseFloat(s.open);
+    const hi    = parseFloat(s.high);
+    const lo    = parseFloat(s.low);
+    const chg   = price - open;
+    const cpct  = (chg/open)*100;
+
+    document.getElementById('price').textContent = fmtUSD(price);
+    const p = document.getElementById('pct');
+    p.textContent = pct(cpct); p.className = cls(cpct);
+    const a = document.getElementById('abs');
+    a.textContent = (chg>=0?'+':'−')+'$'+Math.abs(chg).toFixed(4)+' in 24h';
+
+    document.getElementById('lo').textContent = fmtUSD(lo);
+    document.getElementById('hi').textContent = fmtUSD(hi);
+    const posn = Math.max(0,Math.min(100,((price-lo)/(hi-lo))*100));
+    document.getElementById('fill').style.width = posn+'%';
+    document.getElementById('knob').style.left  = posn+'%';
+    document.getElementById('rangecap').textContent =
+      `Trading ${posn.toFixed(0)}% of the way up today's range · spread ${fmtUSD(hi-lo)}`;
+
+    document.getElementById('stamp').textContent =
+      'updated ' + new Date().toLocaleTimeString('en-US',{hour12:false});
+  }catch(e){
+    document.getElementById('stamp').textContent = 'ticker unavailable — retrying';
+  }
+}
+
+/* ============================================================
+   2. MAIN PRICE + VOLUME CHART
+   ============================================================ */
+const TF = {
+  '1D' :{src:'cb', gran:300,   n:288,  label:'5-minute candles · past 24 hours'},
+  '1W' :{src:'cb', gran:3600,  n:168,  label:'Hourly candles · past 7 days'},
+  '1M' :{src:'cb', gran:21600, n:120,  label:'6-hour candles · past 30 days'},
+  '1Y' :{src:'cg', days:365,           label:'Daily closes · past year'},
+  'ALL':{src:'cg', days:'max',         label:'Daily closes · full history'}
+};
+let mainChart, volChart;
+
+async function loadMain(tf){
+  const cfg = TF[tf];
+  const note = document.getElementById('mainNote');
+  note.textContent = 'Loading ' + cfg.label.toLowerCase() + '…';
+  try{
+    let labels=[], prices=[], vols=[];
+    if(cfg.src==='cb'){
+      const raw = await getJSON(`${CB}/products/${PAIR}/candles?granularity=${cfg.gran}`);
+      const rows = raw.sort((a,b)=>a[0]-b[0]).slice(-cfg.n);
+      labels = rows.map(r=>new Date(r[0]*1000));
+      prices = rows.map(r=>r[4]);
+      vols   = rows.map(r=>r[5]);
+    }else{
+      const d = await getJSON(`${CG}/coins/ripple/market_chart?vs_currency=usd&days=${cfg.days}&interval=daily`);
+      labels = d.prices.map(p=>new Date(p[0]));
+      prices = d.prices.map(p=>p[1]);
+      vols   = (d.total_volumes||[]).map(v=>v[1]);
+    }
+
+    const rising = prices[prices.length-1] >= prices[0];
+    const line   = rising ? '#3FB68B' : '#E5643E';
+    const timeUnit = (tf==='1D')?'hour':(tf==='1W')?'day':(tf==='1M')?'day':'month';
+
+    const xAxis = {
+      grid:{display:false},
+      ticks:{maxTicksLimit:7, maxRotation:0,
+        callback:function(v,i){
+          const dt = labels[i]; if(!dt) return '';
+          if(tf==='1D') return dt.toLocaleTimeString('en-US',{hour:'2-digit',hour12:false})+':00';
+          if(tf==='1W'||tf==='1M') return dt.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+          return dt.toLocaleDateString('en-US',{month:'short',year:'2-digit'});
+        }}
+    };
+
+    mainChart?.destroy();
+    mainChart = new Chart(document.getElementById('mainChart'),{
+      type:'line',
+      data:{labels, datasets:[{
+        data:prices, borderColor:line, borderWidth:1.6, pointRadius:0,
+        tension:.18, fill:true,
+        backgroundColor:(c)=>{
+          const {ctx,chartArea} = c.chart; if(!chartArea) return 'transparent';
+          const g = ctx.createLinearGradient(0,chartArea.top,0,chartArea.bottom);
+          g.addColorStop(0, line+'2E'); g.addColorStop(1, line+'00');
+          return g;
+        }
+      }]},
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        interaction:{mode:'index',intersect:false},
+        plugins:{legend:{display:false},tooltip:{
+          backgroundColor:'#161B22',borderColor:'#232B36',borderWidth:1,
+          titleColor:'#E8EAED',bodyColor:'#E8EAED',padding:10,displayColors:false,
+          callbacks:{
+            title:it=>labels[it[0].dataIndex].toLocaleString('en-US',
+              {month:'short',day:'numeric',hour:tf==='1D'?'2-digit':undefined,minute:tf==='1D'?'2-digit':undefined}),
+            label:it=>fmtUSD(it.parsed.y)
+          }}},
+        scales:{x:xAxis, y:{position:'right',grid:GRID,border:{display:false},
+          ticks:{callback:v=>'$'+v.toFixed(v<1?3:2)}}}
+      }
+    });
+
+    volChart?.destroy();
+    volChart = new Chart(document.getElementById('volChart'),{
+      type:'bar',
+      data:{labels, datasets:[{data:vols, backgroundColor:line+'44', borderWidth:0}]},
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{
+          backgroundColor:'#161B22',borderColor:'#232B36',borderWidth:1,
+          titleColor:'#E8EAED',bodyColor:'#E8EAED',padding:8,displayColors:false,
+          callbacks:{title:()=>'Volume', label:it=>fmtNum(it.parsed.y)+(cfg.src==='cb'?' XRP':' USD')}}},
+        scales:{x:{display:false},y:{position:'right',grid:{display:false},border:{display:false},
+          ticks:{maxTicksLimit:2,callback:v=>fmtNum(v)}}}
+      }
+    });
+
+    note.textContent = cfg.label + (cfg.src==='cb'?' · volume in XRP':' · volume in USD');
+  }catch(e){
+    note.innerHTML = '<span class="err">Chart data unavailable — '+e.message+'</span>';
+  }
+}
+
+/* ============================================================
+   3. MARKET STATS + ATH  (CoinGecko)
+   ============================================================ */
+async function loadStats(){
+  try{
+    const d = await getJSON(`${CG}/coins/ripple?localization=false&tickers=false&community_data=false&developer_data=false`);
+    const m = d.market_data;
+
+    document.getElementById('mcap').textContent = fmtBig(m.market_cap.usd);
+    document.getElementById('mcaprank').textContent = 'Rank #' + d.market_cap_rank + ' by market cap';
+
+    document.getElementById('vol24').textContent = fmtBig(m.total_volume.usd);
+    const ratio = (m.total_volume.usd/m.market_cap.usd)*100;
+    document.getElementById('volratio').textContent = ratio.toFixed(1)+'% of market cap traded';
+
+    document.getElementById('supply').textContent = fmtNum(m.circulating_supply);
+    if(m.max_supply){
+      document.getElementById('supplypct').textContent =
+        ((m.circulating_supply/m.max_supply)*100).toFixed(1)+'% of '+fmtNum(m.max_supply)+' max';
+    }else{
+      document.getElementById('supplypct').textContent = 'No fixed maximum';
+    }
+
+    const c7 = m.price_change_percentage_7d;
+    const e7 = document.getElementById('chg7');
+    e7.textContent = pct(c7); e7.className = 'v ' + cls(c7);
+
+    // ATH
+    const down = m.ath_change_percentage.usd;
+    document.getElementById('athpct').textContent = down.toFixed(1)+'%';
+    const athDate = new Date(m.ath_date.usd);
+    const yrs = ((Date.now()-athDate)/(365.25*24*3600*1000)).toFixed(1);
+    document.getElementById('athtxt').innerHTML =
+      `below the all-time high of <b>${fmtUSD(m.ath.usd)}</b>, set on ` +
+      `<b>${athDate.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</b> — ${yrs} years ago. ` +
+      `Getting back there would take a <b>${(((m.ath.usd/m.current_price.usd)-1)*100).toFixed(0)}%</b> move from here.`;
+  }catch(e){
+    document.getElementById('athtxt').innerHTML = '<span class="err">Market data unavailable — '+e.message+'</span>';
+  }
+}
+
+/* ============================================================
+   4. NORMALIZED COMPARISON
+   ============================================================ */
+let cmpChart;
+async function loadCmp(days){
+  try{
+    const series = await Promise.all(CMP.map(c =>
+      getJSON(`${CG}/coins/${c.id}/market_chart?vs_currency=usd&days=${days}&interval=daily`)
+    ));
+    const labels = series[0].prices.map(p=>new Date(p[0]));
+    const datasets = series.map((s,i)=>{
+      const base = s.prices[0][1];
+      return {
+        label:CMP[i].sym,
+        data:s.prices.map(p=>(p[1]/base)*100),
+        borderColor:CMP[i].color,
+        borderWidth:CMP[i].sym==='XRP'?2.2:1.3,
+        pointRadius:0, tension:.2, fill:false
+      };
+    });
+
+    cmpChart?.destroy();
+    cmpChart = new Chart(document.getElementById('cmpChart'),{
+      type:'line',
+      data:{labels,datasets},
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        interaction:{mode:'index',intersect:false},
+        plugins:{
+          legend:{position:'top',align:'end',labels:{boxWidth:8,boxHeight:8,usePointStyle:true,
+            pointStyle:'rect',padding:16,font:{size:11}}},
+          tooltip:{backgroundColor:'#161B22',borderColor:'#232B36',borderWidth:1,
+            titleColor:'#E8EAED',bodyColor:'#E8EAED',padding:10,
+            callbacks:{
+              title:it=>labels[it[0].dataIndex].toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
+              label:it=>it.dataset.label+'  '+it.parsed.y.toFixed(1)+
+                '  ('+pct(it.parsed.y-100)+')'
+            }}
+        },
+        scales:{
+          x:{grid:{display:false},ticks:{maxTicksLimit:7,maxRotation:0,
+            callback:(v,i)=>labels[i]?labels[i].toLocaleDateString('en-US',{month:'short',day:'numeric'}):''}},
+          y:{position:'right',grid:GRID,border:{display:false},
+            ticks:{callback:v=>v.toFixed(0)}}
+        }
+      }
+    });
+  }catch(e){
+    document.getElementById('cmpChart').closest('section')
+      .querySelector('.sub').innerHTML = '<span class="err">Comparison unavailable — '+e.message+'</span>';
+  }
+}
+
+/* ============================================================
+   5. TOP 10 SPARKLINE GRID
+   ============================================================ */
+async function loadGrid(){
+  const box = document.getElementById('grid10');
+  try{
+    const d = await getJSON(`${CG}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1&sparkline=true&price_change_percentage=7d`);
+    box.innerHTML = '';
+    d.forEach((c,i)=>{
+      const chg = c.price_change_percentage_7d_in_currency ?? 0;
+      const col = chg>=0 ? '#3FB68B' : '#E5643E';
+      const el = document.createElement('div');
+      el.className='cell';
+      el.innerHTML = `
+        <div class="cellhead">
+          <div class="sym">${c.symbol.toUpperCase()}<span class="cellname">${c.name}</span></div>
+          <div class="chg ${cls(chg)}">${pct(chg)}</div>
+        </div>
+        <div class="spark"><canvas id="sp${i}"></canvas></div>
+        <div class="cellprice">${fmtUSD(c.current_price, c.current_price<1?4:2)}</div>`;
+      box.appendChild(el);
+
+      const pts = c.sparkline_in_7d?.price || [];
+      new Chart(document.getElementById('sp'+i),{
+        type:'line',
+        data:{labels:pts.map((_,k)=>k),datasets:[{data:pts,borderColor:col,borderWidth:1.3,
+          pointRadius:0,tension:.25,fill:false}]},
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false},tooltip:{enabled:false}},
+          scales:{x:{display:false},y:{display:false}},
+          animation:false}
+      });
+    });
+  }catch(e){
+    box.innerHTML = '<div class="err">Top-10 data unavailable — '+e.message+'</div>';
+  }
+}
+
+/* ============================================================
+   6. 30-DAY CORRELATION HEATMAP
+   ============================================================ */
+function pearson(a,b){
+  const n=a.length, ma=a.reduce((s,x)=>s+x,0)/n, mb=b.reduce((s,x)=>s+x,0)/n;
+  let num=0,da=0,db=0;
+  for(let i=0;i<n;i++){const x=a[i]-ma,y=b[i]-mb;num+=x*y;da+=x*x;db+=y*y;}
+  return num/Math.sqrt(da*db);
+}
+function corrColor(r){
+  // 0 -> slate, 1 -> wire blue; negatives -> orange
+  if(r<0){const t=Math.min(1,-r);return `rgba(229,100,62,${.25+t*.7})`;}
+  const t=Math.max(0,Math.min(1,r));
+  return `rgba(91,141,239,${.12+t*.82})`;
+}
+async function loadCorr(){
+  const box = document.getElementById('hmwrap');
+  try{
+    const series = {};
+    for(const id of CORR_IDS){
+      const d = await getJSON(`${CG}/coins/${id}/market_chart?vs_currency=usd&days=30&interval=daily`);
+      const p = d.prices.map(x=>x[1]);
+      series[id] = p.slice(1).map((v,i)=>Math.log(v/p[i]));   // daily log returns
+      await new Promise(r=>setTimeout(r,220));                 // stay under CoinGecko rate limit
+    }
+    const n = Math.min(...CORR_IDS.map(id=>series[id].length));
+    let html = '<table class="hm"><tr><th></th>';
+    CORR_IDS.forEach(id=>html+=`<th>${CORR_SYM[id]}</th>`);
+    html += '</tr>';
+    CORR_IDS.forEach(a=>{
+      html += `<tr><th class="row">${CORR_SYM[a]}</th>`;
+      CORR_IDS.forEach(b=>{
+        const r = pearson(series[a].slice(-n), series[b].slice(-n));
+        html += `<td><div class="cellc" style="background:${corrColor(r)}">${r.toFixed(2)}</div></td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</table>';
+    box.innerHTML = html;
+  }catch(e){
+    box.innerHTML = '<div class="err">Correlation data unavailable — '+e.message+'</div>';
+  }
+}
+
+/* ============================================================
+   WIRING
+   ============================================================ */
+document.getElementById('tabs').addEventListener('click',e=>{
+  const b = e.target.closest('.tab'); if(!b) return;
+  [...e.currentTarget.children].forEach(x=>x.setAttribute('aria-selected','false'));
+  b.setAttribute('aria-selected','true');
+  loadMain(b.dataset.tf);
+});
+document.getElementById('cmptabs').addEventListener('click',e=>{
+  const b = e.target.closest('.tab'); if(!b) return;
+  [...e.currentTarget.children].forEach(x=>x.setAttribute('aria-selected','false'));
+  b.setAttribute('aria-selected','true');
+  loadCmp(b.dataset.cmp);
+});
+
+loadTicker();
+loadMain('1M');
+loadStats();
+loadCmp(30);
+loadGrid();
+loadCorr();
+
+setInterval(loadTicker, 30000);
+setInterval(loadStats, 300000);
+</script>
+</body>
+</html>

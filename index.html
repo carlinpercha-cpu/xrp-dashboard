@@ -188,7 +188,7 @@ footer{border-top:1px solid var(--line);padding-top:18px;font-family:'IBM Plex M
         <button class="tab" role="tab" data-tf="1W" aria-selected="false">1W</button>
         <button class="tab" role="tab" data-tf="1M" aria-selected="true">1M</button>
         <button class="tab" role="tab" data-tf="1Y" aria-selected="false">1Y</button>
-        <button class="tab" role="tab" data-tf="ALL" aria-selected="false">ALL</button>
+        <button class="tab" role="tab" data-tf="5Y" aria-selected="false">ALL</button>
       </div>
     </div>
     <div class="chartbox"><canvas id="mainChart"></canvas></div>
@@ -335,7 +335,7 @@ const TF = {
   '1W' :{src:'cb', gran:3600,  n:168,  label:'Hourly candles · past 7 days'},
   '1M' :{src:'cb', gran:21600, n:120,  label:'6-hour candles · past 30 days'},
   '1Y' :{src:'cg', days:365,           label:'Daily closes · past year'},
-  'ALL':{src:'cg', days:'max',         label:'Daily closes · full history'}
+  'ALL':{src:'cg', days:1825,        label:'Daily closes · past 5 years'}
 };
 let mainChart, volChart;
 

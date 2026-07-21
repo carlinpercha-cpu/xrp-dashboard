@@ -8,6 +8,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/luxon/3.4.4/luxon.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.2.1/dist/chartjs-chart-financial.min.js"></script>
 <style>
 :root{
   --ink:#0E1116;
@@ -189,6 +192,10 @@ footer{border-top:1px solid var(--line);padding-top:18px;font-family:'IBM Plex M
         <button class="tab" role="tab" data-tf="1M" aria-selected="true">1M</button>
         <button class="tab" role="tab" data-tf="1Y" aria-selected="false">1Y</button>
       </div>
+        <div class="tabs" role="tablist" id="styletabs" style="margin-left:8px">
+        <button class="tab" role="tab" data-style="line" aria-selected="true">LINE</button>
+        <button class="tab" role="tab" data-style="candle" aria-selected="false">CANDLES</button>
+</div>
     </div>
     <div class="chartbox"><canvas id="mainChart"></canvas></div>
     <div class="volbox"><canvas id="volChart"></canvas></div>
@@ -330,26 +337,37 @@ async function loadTicker(){
    2. MAIN PRICE + VOLUME CHART
    ============================================================ */
 const TF = {
-  '1D' :{src:'cb', gran:300,   n:288,  label:'5-minute candles · past 24 hours'},
-  '1W' :{src:'cb', gran:3600,  n:168,  label:'Hourly candles · past 7 days'},
-  '1M' :{src:'cb', gran:21600, n:120,  label:'6-hour candles · past 30 days'},
-  '1Y' :{src:'cg', days:365,           label:'Daily closes · past year'},
-  'ALL':{src:'cg', days:1825,        label:'Daily closes · past 5 years'}
+  '1D' :{src:'cb', gran:300,   n:288,  label:'5-minute intervals · past 24 hours'},
+  '1W' :{src:'cb', gran:3600,  n:168,  label:'Hourly intervals · past 7 days'},
+  '1M' :{src:'cb', gran:21600, n:120,  label:'6-hour intervals · past 30 days'},
+  '1Y' :{src:'cg', days:365,           label:'Daily closes · past year'}
 };
 let mainChart, volChart;
+let curTF = '1M', curStyle = 'line';
 
-async function loadMain(tf){
+const UP = '#3FB68B', DOWN = '#E5643E';
+
+async function loadMain(tf, style){
+  curTF = tf = tf || curTF;
+  curStyle = style = style || curStyle;
   const cfg = TF[tf];
   const note = document.getElementById('mainNote');
-  note.textContent = 'Loading ' + cfg.label.toLowerCase() + '…';
+  const canCandle = cfg.src === 'cb';
+  const useCandle = (style === 'candle') && canCandle;
+
+  note.textContent = 'Loading…';
   try{
-    let labels=[], prices=[], vols=[];
+    let labels=[], prices=[], vols=[], ohlc=[], upFlags=[];
+
     if(cfg.src==='cb'){
       const raw = await getJSON(`${CB}/products/${PAIR}/candles?granularity=${cfg.gran}`);
       const rows = raw.sort((a,b)=>a[0]-b[0]).slice(-cfg.n);
+      // Coinbase row: [time, low, high, open, close, volume]
       labels = rows.map(r=>new Date(r[0]*1000));
       prices = rows.map(r=>r[4]);
       vols   = rows.map(r=>r[5]);
+      ohlc   = rows.map(r=>({x:r[0]*1000, o:r[3], h:r[2], l:r[1], c:r[4]}));
+      upFlags= rows.map(r=>r[4] >= r[3]);
     }else{
       const d = await getJSON(`${CG}/coins/ripple/market_chart?vs_currency=usd&days=${cfg.days}&interval=daily`);
       labels = d.prices.map(p=>new Date(p[0]));
@@ -358,53 +376,94 @@ async function loadMain(tf){
     }
 
     const rising = prices[prices.length-1] >= prices[0];
-    const line   = rising ? '#3FB68B' : '#E5643E';
-    const timeUnit = (tf==='1D')?'hour':(tf==='1W')?'day':(tf==='1M')?'day':'month';
+    const line   = rising ? UP : DOWN;
 
-    const xAxis = {
-      grid:{display:false},
-      ticks:{maxTicksLimit:7, maxRotation:0,
-        callback:function(v,i){
-          const dt = labels[i]; if(!dt) return '';
-          if(tf==='1D') return dt.toLocaleTimeString('en-US',{hour:'2-digit',hour12:false})+':00';
-          if(tf==='1W'||tf==='1M') return dt.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-          return dt.toLocaleDateString('en-US',{month:'short',year:'2-digit'});
-        }}
+    const tickFmt = (dt)=>{
+      if(!dt) return '';
+      if(tf==='1D') return dt.toLocaleTimeString('en-US',{hour:'2-digit',hour12:false})+':00';
+      if(tf==='1W'||tf==='1M') return dt.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      return dt.toLocaleDateString('en-US',{month:'short',year:'2-digit'});
     };
 
     mainChart?.destroy();
-    mainChart = new Chart(document.getElementById('mainChart'),{
-      type:'line',
-      data:{labels, datasets:[{
-        data:prices, borderColor:line, borderWidth:1.6, pointRadius:0,
-        tension:.18, fill:true,
-        backgroundColor:(c)=>{
-          const {ctx,chartArea} = c.chart; if(!chartArea) return 'transparent';
-          const g = ctx.createLinearGradient(0,chartArea.top,0,chartArea.bottom);
-          g.addColorStop(0, line+'2E'); g.addColorStop(1, line+'00');
-          return g;
+
+    if(useCandle){
+      mainChart = new Chart(document.getElementById('mainChart'),{
+        type:'candlestick',
+        data:{datasets:[{
+          data: ohlc,
+          borderColors:{up:UP, down:DOWN, unchanged:'#7C8794'},
+          backgroundColors:{up:UP+'CC', down:DOWN+'CC', unchanged:'#7C8794'},
+          borderWidth:1
+        }]},
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          plugins:{legend:{display:false},tooltip:{
+            backgroundColor:'#161B22',borderColor:'#232B36',borderWidth:1,
+            titleColor:'#E8EAED',bodyColor:'#E8EAED',padding:10,displayColors:false,
+            callbacks:{
+              title:it=>new Date(it[0].parsed.x).toLocaleString('en-US',
+                {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}),
+              label:it=>{
+                const p = it.parsed;
+                return ['Open   '+fmtUSD(p.o), 'High   '+fmtUSD(p.h),
+                        'Low    '+fmtUSD(p.l), 'Close  '+fmtUSD(p.c)];
+              }
+            }}},
+          scales:{
+            x:{type:'timeseries', grid:{display:false},
+               ticks:{maxTicksLimit:7, maxRotation:0,
+                 callback:(v)=>tickFmt(new Date(v))}},
+            y:{position:'right',grid:GRID,border:{display:false},
+               ticks:{callback:v=>'$'+v.toFixed(v<1?3:2)}}
+          }
         }
-      }]},
-      options:{
-        responsive:true, maintainAspectRatio:false,
-        interaction:{mode:'index',intersect:false},
-        plugins:{legend:{display:false},tooltip:{
-          backgroundColor:'#161B22',borderColor:'#232B36',borderWidth:1,
-          titleColor:'#E8EAED',bodyColor:'#E8EAED',padding:10,displayColors:false,
-          callbacks:{
-            title:it=>labels[it[0].dataIndex].toLocaleString('en-US',
-              {month:'short',day:'numeric',hour:tf==='1D'?'2-digit':undefined,minute:tf==='1D'?'2-digit':undefined}),
-            label:it=>fmtUSD(it.parsed.y)
-          }}},
-        scales:{x:xAxis, y:{position:'right',grid:GRID,border:{display:false},
-          ticks:{callback:v=>'$'+v.toFixed(v<1?3:2)}}}
-      }
-    });
+      });
+    }else{
+      mainChart = new Chart(document.getElementById('mainChart'),{
+        type:'line',
+        data:{labels, datasets:[{
+          data:prices, borderColor:line, borderWidth:1.6, pointRadius:0,
+          tension:.18, fill:true,
+          backgroundColor:(c)=>{
+            const {ctx,chartArea} = c.chart; if(!chartArea) return 'transparent';
+            const g = ctx.createLinearGradient(0,chartArea.top,0,chartArea.bottom);
+            g.addColorStop(0, line+'2E'); g.addColorStop(1, line+'00');
+            return g;
+          }
+        }]},
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          interaction:{mode:'index',intersect:false},
+          plugins:{legend:{display:false},tooltip:{
+            backgroundColor:'#161B22',borderColor:'#232B36',borderWidth:1,
+            titleColor:'#E8EAED',bodyColor:'#E8EAED',padding:10,displayColors:false,
+            callbacks:{
+              title:it=>labels[it[0].dataIndex].toLocaleString('en-US',
+                {month:'short',day:'numeric',hour:tf==='1D'?'2-digit':undefined,minute:tf==='1D'?'2-digit':undefined}),
+              label:it=>fmtUSD(it.parsed.y)
+            }}},
+          scales:{
+            x:{grid:{display:false},
+               ticks:{maxTicksLimit:7, maxRotation:0,
+                 callback:(v,i)=>tickFmt(labels[i])}},
+            y:{position:'right',grid:GRID,border:{display:false},
+               ticks:{callback:v=>'$'+v.toFixed(v<1?3:2)}}
+          }
+        }
+      });
+    }
 
     volChart?.destroy();
     volChart = new Chart(document.getElementById('volChart'),{
       type:'bar',
-      data:{labels, datasets:[{data:vols, backgroundColor:line+'44', borderWidth:0}]},
+      data:{labels, datasets:[{
+        data:vols,
+        backgroundColor: useCandle
+          ? upFlags.map(u => (u?UP:DOWN)+'55')
+          : line+'44',
+        borderWidth:0
+      }]},
       options:{
         responsive:true, maintainAspectRatio:false,
         plugins:{legend:{display:false},tooltip:{
@@ -416,7 +475,20 @@ async function loadMain(tf){
       }
     });
 
-    note.textContent = cfg.label + (cfg.src==='cb'?' · volume in XRP':' · volume in USD');
+    // style toggle availability
+    const stBtns = document.querySelectorAll('#styletabs .tab');
+    stBtns.forEach(b=>{
+      const isCandle = b.dataset.style==='candle';
+      b.disabled = isCandle && !canCandle;
+      b.style.opacity = b.disabled ? .35 : 1;
+      b.style.cursor  = b.disabled ? 'not-allowed' : 'pointer';
+      b.setAttribute('aria-selected', String(b.dataset.style === (useCandle?'candle':'line')));
+    });
+
+    note.textContent = cfg.label +
+      (useCandle ? ' · open/high/low/close' : '') +
+      (cfg.src==='cb'?' · volume in XRP':' · volume in USD') +
+      (!canCandle && style==='candle' ? ' · candles need intraday data, showing line' : '');
   }catch(e){
     note.innerHTML = '<span class="err">Chart data unavailable — '+e.message+'</span>';
   }
@@ -605,7 +677,11 @@ document.getElementById('tabs').addEventListener('click',e=>{
   const b = e.target.closest('.tab'); if(!b) return;
   [...e.currentTarget.children].forEach(x=>x.setAttribute('aria-selected','false'));
   b.setAttribute('aria-selected','true');
-  loadMain(b.dataset.tf);
+  loadMain(b.dataset.tf, curStyle);
+});
+document.getElementById('styletabs').addEventListener('click',e=>{
+  const b = e.target.closest('.tab'); if(!b || b.disabled) return;
+  loadMain(curTF, b.dataset.style);
 });
 document.getElementById('cmptabs').addEventListener('click',e=>{
   const b = e.target.closest('.tab'); if(!b) return;

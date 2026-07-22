@@ -11,6 +11,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/luxon/3.4.4/luxon.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.2.1/dist/chartjs-chart-financial.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 <style>
 :root{
   --ink:#0E1116;
@@ -199,7 +200,10 @@ footer{border-top:1px solid var(--line);padding-top:18px;font-family:'IBM Plex M
     </div>
     <div class="chartbox"><canvas id="mainChart"></canvas></div>
     <div class="volbox"><canvas id="volChart"></canvas></div>
-    <div class="sub" style="margin-top:10px" id="mainNote">Loading candles…</div>
+    <div class="sub" style="margin-top:10px">
+  <span id="mainNote">Loading…</span>
+  <button onclick="resetZoom()" style="margin-left:12px;background:none;border:1px solid var(--line);color:var(--mute);font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;padding:3px 9px;border-radius:4px;cursor:pointer">RESET ZOOM</button>
+</div>
   </section>
 
   <!-- STATS -->
@@ -346,6 +350,23 @@ let mainChart, volChart;
 let curTF = '1M', curStyle = 'line';
 
 const UP = '#3FB68B', DOWN = '#E5643E';
+const ZOOM = {
+  zoom:{
+    wheel:{enabled:true, speed:0.08},
+    pinch:{enabled:true},
+    drag:{enabled:true, backgroundColor:'rgba(91,141,239,0.12)',
+          borderColor:'#5B8DEF', borderWidth:1, modifierKey:'shift'},
+    mode:'x'
+  },
+  pan:{enabled:true, mode:'x', modifierKey:null},
+  limits:{x:{minRange:60000}}
+};
+
+function resetZoom(){
+  mainChart?.resetZoom?.();
+  volChart?.resetZoom?.();
+  cmpChart?.resetZoom?.();
+}
 
 async function loadMain(tf, style){
   curTF = tf = tf || curTF;
@@ -398,7 +419,7 @@ async function loadMain(tf, style){
         }]},
         options:{
           responsive:true, maintainAspectRatio:false,
-          plugins:{legend:{display:false},tooltip:{
+          plugins:{zoom:ZOOM, legend:{display:false},tooltip:{
             backgroundColor:'#161B22',borderColor:'#232B36',borderWidth:1,
             titleColor:'#E8EAED',bodyColor:'#E8EAED',padding:10,displayColors:false,
             callbacks:{
@@ -435,7 +456,7 @@ async function loadMain(tf, style){
         options:{
           responsive:true, maintainAspectRatio:false,
           interaction:{mode:'index',intersect:false},
-          plugins:{legend:{display:false},tooltip:{
+          plugins:{zoom:ZOOM, legend:{display:false},tooltip:{
             backgroundColor:'#161B22',borderColor:'#232B36',borderWidth:1,
             titleColor:'#E8EAED',bodyColor:'#E8EAED',padding:10,displayColors:false,
             callbacks:{
@@ -564,6 +585,7 @@ async function loadCmp(days){
         responsive:true, maintainAspectRatio:false,
         interaction:{mode:'index',intersect:false},
         plugins:{
+          zoom:ZOOM,
           legend:{position:'top',align:'end',labels:{boxWidth:8,boxHeight:8,usePointStyle:true,
             pointStyle:'rect',padding:16,font:{size:11}}},
           tooltip:{backgroundColor:'#161B22',borderColor:'#232B36',borderWidth:1,
